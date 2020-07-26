@@ -37,5 +37,5 @@ export class ProductService {
         }
         console.error(errorMessage);
         return throwError(errorMessage);
-      }
+    }
 }
