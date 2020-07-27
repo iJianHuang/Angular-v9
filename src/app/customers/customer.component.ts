@@ -1,7 +1,32 @@
 import { Component, OnInit } from '@angular/core';
-import { FormGroup, FormBuilder, Validators } from '@angular/forms';
+import { FormGroup, FormBuilder, Validators, AbstractControl, ValidatorFn, FormArray } from '@angular/forms';
+
+import { debounceTime } from 'rxjs/operators';
 
 import { Customer } from './customer';
+
+function emailMatcher(c: AbstractControl): { [key: string]: boolean } | null {
+  const emailControl = c.get('email');
+  const confimrControl = c.get('confirmEmail');
+
+  if (emailControl.pristine || confimrControl.pristine) {
+    return null;
+  }
+
+  if (emailControl.value === confimrControl.value) {
+    return null;
+  }
+  return { 'match': true };
+}
+
+function ratingRange(min: number, max: number): ValidatorFn {
+  return (c: AbstractControl): { [key: string]: boolean } | null => {
+    if (c.value !== null && (isNaN(c.value) || c.value < min || c.value > max)) {
+      return { 'range': true };
+    }
+    return null;
+  }
+}
 
 @Component({
   //selector: 'app-customer',
@@ -11,6 +36,15 @@ import { Customer } from './customer';
 export class CustomerComponent implements OnInit {
   customerForm: FormGroup;
   customer = new Customer();
+  emailMessage: string;
+
+  get addresses(): FormArray {
+    return <FormArray>this.customerForm.get('addresses');
+  }
+  private validationMessages = {
+    required: 'Please enter your email address.',
+    email: 'Please enter a valid email address.'
+  };
 
   constructor(private fb: FormBuilder) { }
 
@@ -18,11 +52,45 @@ export class CustomerComponent implements OnInit {
     this.customerForm = this.fb.group({
       firstName: ['', [Validators.required, Validators.minLength(3)]],
       lastName: ['', [Validators.required, Validators.maxLength(50)]],
-      email: ['', [Validators.required, Validators.email]],
+      emailGroup: this.fb.group({
+        email: ['', [Validators.required, Validators.email]],
+        confirmEmail: ['', Validators.required],
+      }, {
+        validator: emailMatcher
+      }),
       phone: '',
       notification: 'email',
-      sendCatalog: true
+      rating: [null, ratingRange(1, 5)],
+      sendCatalog: true,
+      addresses: this.fb.array([ this.buildAddress() ])
     });
+
+    this.customerForm.get('notification').valueChanges.subscribe(
+      value => this.setNotification(value)
+    );
+
+    const emailControl = this.customerForm.get('emailGroup.email');
+    emailControl.valueChanges
+      .pipe(
+        debounceTime(1000)
+      ).subscribe(
+        value => this.setMessage(emailControl)
+      );
+  }
+
+  buildAddress(): FormGroup {
+    return this.fb.group({
+      addressType: 'home',
+      street1: '',
+      street2: '',
+      city: '',
+      state: '',
+      zip: ''
+    });
+  }
+
+  addAddress(): void {
+    this.addresses.push(this.buildAddress());
   }
 
   populateTestData(): void {
@@ -39,6 +107,16 @@ export class CustomerComponent implements OnInit {
     console.log('Saved: ' + JSON.stringify(this.customerForm.value));
   }
 
+  setMessage(c: AbstractControl): void {
+    this.emailMessage = '';
+    if ((c.touched || c.dirty) && c.errors) {
+      this.emailMessage = Object.keys(c.errors)
+        .map(
+          key => this.validationMessages[key]
+        ).join(' ');
+    }
+  }
+
   setNotification(notifyVia: string): void {
     const phoneControl = this.customerForm.get('phone');
     if (notifyVia === 'text') {
@@ -46,6 +124,6 @@ export class CustomerComponent implements OnInit {
     } else {
       phoneControl.clearValidators();
     }
-    phoneControl.updateValueAndValidity(); 
+    phoneControl.updateValueAndValidity();
   }
 }
