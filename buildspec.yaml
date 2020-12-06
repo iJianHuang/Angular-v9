@@ -3,7 +3,7 @@ version: 0.2
 env:
     variables:
         CACHE_CONTROL: "86400"
-        S3_BUCKET: www.ijianhuang.com/Artifacts
+        S3_BUCKET: cf-templates-xfgyhgphw5hc-us-east-1/Artifacts
         #BUILD_FOLDER: Artifacts
         BUILD_ENV: "prod" 
 phases:
